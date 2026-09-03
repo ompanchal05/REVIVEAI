@@ -1,0 +1,282 @@
+{
+  "entities": {
+    "RecoveryCase": {
+      "title": "RecoveryCase",
+      "description": "Payment failure incident tracked for smart AI recovery and automated or human-assisted resolution.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the recovery case.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "customer_name": {
+          "type": "string",
+          "description": "Customer display name.",
+          "maxLength": 120
+        },
+        "customer_email": {
+          "type": "string",
+          "description": "Customer contact email for payment notifications.",
+          "maxLength": 150
+        },
+        "amount": {
+          "type": "number",
+          "description": "Invoice or payment transaction amount in INR."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency code (e.g., INR).",
+          "maxLength": 10
+        },
+        "error_code": {
+          "type": "string",
+          "description": "Gateway or bank rejection code.",
+          "maxLength": 64
+        },
+        "error_description": {
+          "type": "string",
+          "description": "Detailed explanation of failure.",
+          "maxLength": 500
+        },
+        "payment_method": {
+          "type": "string",
+          "description": "Payment instrument (card, upi, netbanking, mandate).",
+          "maxLength": 32
+        },
+        "status": {
+          "type": "string",
+          "description": "Lifecycle state of the recovery case.",
+          "enum": [
+            "PENDING_TRIAGE",
+            "SCHEDULED_RETRY",
+            "SENT_PAYMENT_LINK",
+            "ESCALATED_HUMAN",
+            "RECOVERED",
+            "TERMINAL_FAILED"
+          ]
+        },
+        "recovery_probability": {
+          "type": "number",
+          "description": "ML predicted recovery probability between 0 and 1."
+        },
+        "risk_level": {
+          "type": "string",
+          "description": "Customer churn or dispute risk rating.",
+          "enum": ["LOW", "MEDIUM", "HIGH"]
+        },
+        "retry_count": {
+          "type": "number",
+          "description": "Total automated retries attempted."
+        },
+        "reminder_count": {
+          "type": "number",
+          "description": "Total notification reminders or links dispatched."
+        },
+        "created_at": {
+          "type": "string",
+          "description": "Timestamp when case was created.",
+          "maxLength": 64
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "Timestamp when case was last modified.",
+          "maxLength": 64
+        },
+        "owner_id": {
+          "type": "string",
+          "description": "UID of the operator or agent managing the case.",
+          "maxLength": 128
+        }
+      },
+      "required": ["id", "amount", "status", "retry_count", "reminder_count", "owner_id"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable ledger record of recovery actions and policy decisions.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the audit log entry.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "case_id": {
+          "type": "string",
+          "description": "Target recovery case ID.",
+          "maxLength": 128
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "ISO timestamp of event occurrence.",
+          "maxLength": 64
+        },
+        "action": {
+          "type": "string",
+          "description": "Action executed (e.g., RETRY_EXECUTE, SEND_PAYMENT_LINK, HUMAN_OVERRIDE).",
+          "maxLength": 64
+        },
+        "actor": {
+          "type": "string",
+          "description": "Agent, system service, or human user who initiated the action.",
+          "maxLength": 128
+        },
+        "outcome": {
+          "type": "string",
+          "description": "Result of the intervention.",
+          "maxLength": 64
+        },
+        "reason": {
+          "type": "string",
+          "description": "Reasoning or model inference justification.",
+          "maxLength": 500
+        },
+        "hash": {
+          "type": "string",
+          "description": "Cryptographic SHA256 signature of this entry.",
+          "maxLength": 128
+        },
+        "previous_hash": {
+          "type": "string",
+          "description": "SHA256 signature of predecessor log.",
+          "maxLength": 128
+        },
+        "owner_id": {
+          "type": "string",
+          "description": "UID of authenticated operator.",
+          "maxLength": 128
+        }
+      },
+      "required": ["id", "case_id", "timestamp", "action", "actor", "outcome", "hash", "owner_id"]
+    },
+    "PolicyConfig": {
+      "title": "PolicyConfig",
+      "description": "Deterministic financial policy guardrails configuration.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Configuration identifier.",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "max_retries": {
+          "type": "number",
+          "description": "Maximum automated retry attempts."
+        },
+        "max_reminders": {
+          "type": "number",
+          "description": "Maximum customer reminders."
+        },
+        "high_value_threshold": {
+          "type": "number",
+          "description": "Threshold above which cases escalate to human review in INR."
+        },
+        "quiet_hours_start": {
+          "type": "string",
+          "description": "Start of quiet hours (HH:mm).",
+          "maxLength": 10
+        },
+        "quiet_hours_end": {
+          "type": "string",
+          "description": "End of quiet hours (HH:mm).",
+          "maxLength": 10
+        },
+        "enforce_customer_opt_out": {
+          "type": "boolean",
+          "description": "Strict customer opt-out toggle."
+        },
+        "require_human_review_for_disputes": {
+          "type": "boolean",
+          "description": "Mandate human review for disputes toggle."
+        },
+        "policy_version": {
+          "type": "string",
+          "description": "Version string of policy engine.",
+          "maxLength": 32
+        },
+        "updated_at": {
+          "type": "string",
+          "description": "Timestamp of policy modification.",
+          "maxLength": 64
+        },
+        "updated_by": {
+          "type": "string",
+          "description": "User who saved changes.",
+          "maxLength": 128
+        }
+      },
+      "required": ["id", "max_retries", "max_reminders", "high_value_threshold", "policy_version"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile and role settings.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "User authentication UID.",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name.",
+          "maxLength": 120
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified user email.",
+          "maxLength": 150
+        },
+        "role": {
+          "type": "string",
+          "description": "Role designation.",
+          "enum": ["analyst", "manager", "admin"]
+        },
+        "created_at": {
+          "type": "string",
+          "description": "Created at timestamp.",
+          "maxLength": 64
+        }
+      },
+      "required": ["id", "email", "role"]
+    },
+    "ConnectionTest": {
+      "title": "ConnectionTest",
+      "description": "Heartbeat document for validating live Firestore server connectivity.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "description": "Heartbeat status.",
+          "maxLength": 32
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/cases/{caseId}": {
+      "schema": "RecoveryCase",
+      "description": "Active and historical payment recovery cases."
+    },
+    "/audit_logs/{logId}": {
+      "schema": "AuditLog",
+      "description": "Immutable audit entries for payment interventions."
+    },
+    "/policies/{policyId}": {
+      "schema": "PolicyConfig",
+      "description": "System guardrails and threshold settings."
+    },
+    "/users/{userId}/public/profile": {
+      "schema": "UserProfile",
+      "description": "Public profile of authenticated team members."
+    },
+    "/test/{testId}": {
+      "schema": "ConnectionTest",
+      "description": "Connection test doc for verifying Firestore connectivity."
+    }
+  }
+}

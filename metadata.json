@@ -1,0 +1,6 @@
+{
+  "name": "ReviveAI",
+  "description": "AI Revenue Recovery Controller for Razorpay payment failures, intelligent intervention policy, and outcome verification",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

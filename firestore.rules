@@ -1,0 +1,161 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isTerminalStatus(status) {
+      return status == 'RECOVERED' || status == 'TERMINAL_FAILED';
+    }
+
+    // Validation for RecoveryCase
+    function isValidRecoveryCase(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.amount is number && data.amount >= 0 &&
+        data.status is string &&
+        (data.status == 'PENDING_TRIAGE' ||
+         data.status == 'SCHEDULED_RETRY' ||
+         data.status == 'SENT_PAYMENT_LINK' ||
+         data.status == 'ESCALATED_HUMAN' ||
+         data.status == 'RECOVERED' ||
+         data.status == 'TERMINAL_FAILED') &&
+        data.retry_count is number && data.retry_count >= 0 &&
+        data.reminder_count is number && data.reminder_count >= 0 &&
+        data.owner_id is string && data.owner_id == request.auth.uid &&
+        (!('customer_name' in data) || (data.customer_name is string && data.customer_name.size() <= 120)) &&
+        (!('customer_email' in data) || (data.customer_email is string && data.customer_email.size() <= 150)) &&
+        (!('currency' in data) || (data.currency is string && data.currency.size() <= 10)) &&
+        (!('error_code' in data) || (data.error_code is string && data.error_code.size() <= 64)) &&
+        (!('error_description' in data) || (data.error_description is string && data.error_description.size() <= 500)) &&
+        (!('payment_method' in data) || (data.payment_method is string && data.payment_method.size() <= 32)) &&
+        (!('recovery_probability' in data) || (data.recovery_probability is number && data.recovery_probability >= 0 && data.recovery_probability <= 1)) &&
+        (!('risk_level' in data) || (data.risk_level in ['LOW', 'MEDIUM', 'HIGH'])) &&
+        (!('created_at' in data) || (data.created_at is string && data.created_at.size() <= 64)) &&
+        (!('updated_at' in data) || (data.updated_at is string && data.updated_at.size() <= 64));
+    }
+
+    // Validation for AuditLog
+    function isValidAuditLog(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.case_id is string && isValidId(data.case_id) &&
+        data.timestamp is string && data.timestamp.size() <= 64 &&
+        data.action is string && data.action.size() <= 64 &&
+        data.actor is string && data.actor.size() <= 128 &&
+        data.outcome is string && data.outcome.size() <= 64 &&
+        data.hash is string && data.hash.size() <= 128 &&
+        data.owner_id is string && data.owner_id == request.auth.uid &&
+        (!('reason' in data) || (data.reason is string && data.reason.size() <= 500)) &&
+        (!('previous_hash' in data) || (data.previous_hash is string && data.previous_hash.size() <= 128));
+    }
+
+    // Validation for PolicyConfig
+    function isValidPolicyConfig(data) {
+      return data.id is string && isValidId(data.id) &&
+        data.max_retries is number && data.max_retries >= 1 && data.max_retries <= 10 &&
+        data.max_reminders is number && data.max_reminders >= 0 && data.max_reminders <= 10 &&
+        data.high_value_threshold is number && data.high_value_threshold >= 0 &&
+        data.policy_version is string && data.policy_version.size() <= 32 &&
+        (!('quiet_hours_start' in data) || (data.quiet_hours_start is string && data.quiet_hours_start.size() <= 10)) &&
+        (!('quiet_hours_end' in data) || (data.quiet_hours_end is string && data.quiet_hours_end.size() <= 10)) &&
+        (!('enforce_customer_opt_out' in data) || (data.enforce_customer_opt_out is bool)) &&
+        (!('require_human_review_for_disputes' in data) || (data.require_human_review_for_disputes is bool)) &&
+        (!('updated_at' in data) || (data.updated_at is string && data.updated_at.size() <= 64)) &&
+        (!('updated_by' in data) || (data.updated_by is string && data.updated_by.size() <= 128));
+    }
+
+    // Connection test document (for testConnection() heartbeat)
+    match /test/{testId} {
+      allow get: if testId == 'connection';
+      allow list: if false;
+      allow write: if isSignedIn();
+    }
+
+    // Recovery Cases Collection
+    match /cases/{caseId} {
+      allow get: if isSignedIn() && (existing().owner_id == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.owner_id == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+        isValidId(caseId) &&
+        caseId == incoming().id &&
+        isValidRecoveryCase(incoming()) &&
+        incoming().owner_id == request.auth.uid;
+
+      allow update: if isValidRecoveryCase(incoming()) &&
+        isSignedIn() &&
+        isValidId(caseId) &&
+        existing().owner_id == request.auth.uid &&
+        incoming().owner_id == existing().owner_id &&
+        !isTerminalStatus(existing().status) &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'status', 'retry_count', 'reminder_count', 'updated_at',
+          'recovery_probability', 'risk_level'
+        ]);
+
+      allow delete: if isSignedIn() && isValidId(caseId) && existing().owner_id == request.auth.uid;
+    }
+
+    // Audit Logs Collection (strictly append-only immutable ledger)
+    match /audit_logs/{logId} {
+      allow get: if isSignedIn() && (existing().owner_id == request.auth.uid);
+      allow list: if isSignedIn() && (resource.data.owner_id == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+        isValidId(logId) &&
+        logId == incoming().id &&
+        isValidAuditLog(incoming()) &&
+        incoming().owner_id == request.auth.uid;
+
+      // Strictly append-only: No modifications or deletions
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Policy Configuration
+    match /policies/{policyId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(policyId) && isValidPolicyConfig(incoming());
+      allow update: if isValidPolicyConfig(incoming()) &&
+        isSignedIn() &&
+        isValidId(policyId) &&
+        incoming().id == existing().id &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'max_retries', 'max_reminders', 'high_value_threshold',
+          'quiet_hours_start', 'quiet_hours_end', 'enforce_customer_opt_out',
+          'require_human_review_for_disputes', 'policy_version', 'updated_at', 'updated_by'
+        ]);
+      allow delete: if false;
+    }
+
+    // User profiles
+    match /users/{userId}/public/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) && isValidId(docId);
+    }
+  }
+}

@@ -13,6 +13,7 @@ import { AuditTrailView } from './components/AuditTrailView';
 import { SystemStatusSettingsView } from './components/SystemStatusSettingsView';
 import { DemoRunnerModal } from './components/DemoRunnerModal';
 import { LandingHeroModal } from './components/LandingHeroModal';
+import { RazorpayDirectPullModal } from './components/RazorpayDirectPullModal';
 import {
   ActionType,
   AuditLog,
@@ -53,6 +54,7 @@ export default function App() {
   // Modals
   const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
   const [isArchModalOpen, setIsArchModalOpen] = useState<boolean>(false);
+  const [isDirectPullOpen, setIsDirectPullOpen] = useState<boolean>(false);
 
   // Toast feedback
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'warning' | 'error' } | null>(null);
@@ -402,6 +404,7 @@ export default function App() {
         onResetData={handleResetData}
         onSelectScenario={handleSelectScenario}
         onOpenArchitectureInfo={() => setIsArchModalOpen(true)}
+        onOpenDirectPull={() => setIsDirectPullOpen(true)}
       />
 
       {/* App Shell: Sidebar + Main Content */}
@@ -437,6 +440,7 @@ export default function App() {
                 setCurrentTab('human_review');
               }}
               onFilterChange={(filters) => loadCases(filters)}
+              onOpenDirectPull={() => setIsDirectPullOpen(true)}
             />
           )}
 
@@ -505,6 +509,23 @@ export default function App() {
       <LandingHeroModal
         isOpen={isArchModalOpen}
         onClose={() => setIsArchModalOpen(false)}
+      />
+
+      {/* Razorpay Direct Pull Request Modal */}
+      <RazorpayDirectPullModal
+        isOpen={isDirectPullOpen}
+        onClose={() => setIsDirectPullOpen(false)}
+        isDemoMode={systemStatus?.demo_mode ?? true}
+        onPullComplete={(newCases, summary) => {
+          loadOverview();
+          loadCases();
+          loadHumanReviewQueue();
+          showToast(
+            `Razorpay Direct Pull complete: Intercepted ${summary?.failed_intercepted || newCases.length} failed payments (₹${(summary?.total_revenue_at_risk || 0).toLocaleString('en-IN')}) into recovery pipeline!`,
+            'success'
+          );
+        }}
+        onSelectCase={(c) => handleOpenCase(c)}
       />
     </div>
   );

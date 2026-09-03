@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Download,
   Eye,
-  Sparkles
+  Sparkles,
+  ArrowDownToLine
 } from 'lucide-react';
 import { RecoveryCase } from '../types';
 import { formatINR, formatPercent, getStatusBadgeStyle, getRiskBadgeStyle } from '../utils/formatters';
@@ -24,6 +25,7 @@ interface RecoveryQueueViewProps {
   onExecuteCase: (c: RecoveryCase) => void;
   onApproveCase: (c: RecoveryCase) => void;
   onFilterChange: (filters: any) => void;
+  onOpenDirectPull?: () => void;
 }
 
 export const RecoveryQueueView: React.FC<RecoveryQueueViewProps> = ({
@@ -34,6 +36,7 @@ export const RecoveryQueueView: React.FC<RecoveryQueueViewProps> = ({
   onExecuteCase,
   onApproveCase,
   onFilterChange,
+  onOpenDirectPull,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -112,6 +115,18 @@ export const RecoveryQueueView: React.FC<RecoveryQueueViewProps> = ({
           </p>
         </div>
         <div className="flex items-center space-x-2">
+          {onOpenDirectPull && (
+            <button
+              type="button"
+              id="queue-direct-pull-btn"
+              onClick={onOpenDirectPull}
+              className="flex items-center space-x-1.5 px-3 py-2 text-[10px] uppercase tracking-[0.2em] font-medium bg-[#141414] hover:bg-[#1A1A1A] text-[#00D2FF] border border-[#00D2FF]/40 hover:border-[#00D2FF] transition shadow-sm"
+              title="Pull failed transactions directly from Razorpay"
+            >
+              <ArrowDownToLine className="h-3 w-3 text-[#00D2FF]" />
+              <span>Razorpay Direct Pull</span>
+            </button>
+          )}
           <button
             type="button"
             id="export-csv-btn"

@@ -15,7 +15,7 @@ import { auditService } from './src/server/auditService';
 import { experimentService } from './src/server/experimentService';
 import { testRunner } from './src/server/testRunner';
 import { StateMachine } from './src/server/stateMachine';
-import { ActionType, RecoveryCase } from './src/types';
+import { ActionType, Customer, FailureReason, PaymentMethod, RecoveryCase } from './src/types';
 
 dotenv.config();
 
@@ -558,6 +558,231 @@ app.post('/api/webhooks/razorpay', (req: any, res: Response) => {
     status: 'success',
     case_id: newCase.id,
     message: 'Webhook validated and ingested into ReviveAI pipeline'
+  });
+});
+
+// Helper mapping functions for Razorpay payloads
+function mapRazorpayMethod(method: string): PaymentMethod {
+  const m = (method || '').toUpperCase();
+  if (m.includes('UPI')) return 'UPI';
+  if (m.includes('NETBANKING') || m.includes('NB')) return 'NETBANKING';
+  if (m.includes('MANDATE') || m.includes('EMANDATE')) return 'MANDATE';
+  if (m.includes('WALLET')) return 'WALLET';
+  return 'CARD';
+}
+
+function mapRazorpayErrorCode(code: string): FailureReason {
+  const c = (code || '').toUpperCase();
+  if (c.includes('FUNDS') || c.includes('BALANCE')) return 'INSUFFICIENT_FUNDS';
+  if (c.includes('TIMEOUT') || c.includes('TIMED_OUT')) return 'NETWORK_TIMEOUT';
+  if (c.includes('DOWNTIME') || c.includes('BANK_ERROR') || c.includes('GATEWAY')) return 'BANK_DOWNTIME';
+  if (c.includes('EXPIRED') || c.includes('OTP')) return 'AUTH_EXPIRED';
+  if (c.includes('LIMIT')) return 'LIMIT_EXCEEDED';
+  if (c.includes('MANDATE')) return 'MANDATE_DECLINED';
+  if (c.includes('FRAUD') || c.includes('RISK')) return 'FRAUD_CHECK_FAILED';
+  return 'BANK_DOWNTIME';
+}
+
+// In-memory ring buffer for direct pull history
+const directPullHistory: Array<any> = [];
+
+// 13b. Razorpay Direct Pull Request API (GET /v1/payments ingestion & auto-triage)
+app.post('/api/razorpay/direct-pull', async (req: Request, res: Response) => {
+  try {
+    const { count = 25, status = 'failed', from_timestamp, to_timestamp, auto_triage = true } = req.body;
+
+    // Execute authenticated pull request from Razorpay API or realistic sandbox
+    const pullResult = await razorpayService.directPullPayments({
+      count: Number(count),
+      status: String(status),
+      from_timestamp: from_timestamp ? Number(from_timestamp) : undefined,
+      to_timestamp: to_timestamp ? Number(to_timestamp) : undefined
+    });
+
+    const ingestedCases: RecoveryCase[] = [];
+    let newlyIngestedCount = 0;
+    let autoTriagedCount = 0;
+
+    for (const item of pullResult.items) {
+      // Check if case already exists in store
+      const existingCase = dbStore.getCaseById(item.id);
+      if (existingCase) {
+        ingestedCases.push(existingCase);
+        continue;
+      }
+
+      // Convert Razorpay payment entity into ReviveAI Customer & RecoveryCase
+      const paymentMethod = mapRazorpayMethod(item.method);
+      const failureReason = mapRazorpayErrorCode(item.error_code);
+      const customerId = `cust_rzp_${item.id.replace('pay_', '')}`;
+
+      const customer: Customer = {
+        id: customerId,
+        merchant_id: 'mer_razorpay_direct',
+        name: item.customer_name,
+        email: item.email,
+        phone: item.contact,
+        segment: item.amount_inr > 20000 ? 'ENTERPRISE' : item.amount_inr > 8000 ? 'SMB' : 'CONSUMER',
+        tenure_days: Math.floor(60 + Math.random() * 400),
+        previous_successes: Math.floor(3 + Math.random() * 25),
+        previous_failures: Math.floor(Math.random() * 3),
+        historical_recovery_rate: Number((0.68 + Math.random() * 0.26).toFixed(4)),
+        customer_opted_out: false,
+        lifetime_value: item.amount_inr * Math.floor(4 + Math.random() * 10),
+        last_payment_days_ago: Math.floor(2 + Math.random() * 30),
+        created_at: new Date(Date.now() - 90 * 86400000).toISOString()
+      };
+
+      // ML prediction
+      const prediction = mlService.predict({
+        amount: item.amount_inr,
+        payment_method: paymentMethod,
+        failure_reason: failureReason,
+        previous_successes: customer.previous_successes,
+        previous_failures: customer.previous_failures,
+        days_overdue: 0,
+        previous_recovery_attempts: 0,
+        customer_segment: customer.segment,
+        customer_age_days: customer.tenure_days,
+        historical_recovery_rate: customer.historical_recovery_rate
+      });
+
+      // Initial Proposed Action
+      let proposedAction: ActionType = 'RETRY_PAYMENT';
+      if (['BANK_DOWNTIME', 'NETWORK_TIMEOUT'].includes(failureReason)) {
+        proposedAction = 'RETRY_PAYMENT';
+      } else if (failureReason === 'INSUFFICIENT_FUNDS') {
+        proposedAction = 'SCHEDULE_RETRY';
+      } else if (['AUTH_EXPIRED', 'USER_DROPPED'].includes(failureReason)) {
+        proposedAction = 'SEND_PAYMENT_LINK';
+      }
+
+      // Deterministic Safety Policy Evaluation
+      const policyEval = policyEngine.evaluate({
+        case_id: item.id,
+        amount: item.amount_inr,
+        retry_count: 0,
+        reminder_count: 0,
+        recovery_probability: prediction.recovery_probability,
+        ai_confidence: 0.92,
+        event_type: 'PAYMENT_FAILED',
+        failure_reason: failureReason,
+        proposed_action: proposedAction,
+        customer: {
+          customer_opted_out: false,
+          segment: customer.segment
+        }
+      });
+
+      let caseStatus: any = 'ACTION_READY';
+
+      if (policyEval.decision === 'HUMAN_REVIEW') {
+        proposedAction = 'ESCALATE_HUMAN';
+        caseStatus = 'AWAITING_HUMAN';
+      } else if (policyEval.decision === 'STOP') {
+        proposedAction = 'STOP_RECOVERY';
+        caseStatus = 'STOPPED';
+      }
+
+      const newCase: RecoveryCase = {
+        id: item.id,
+        merchant_id: 'mer_razorpay_direct',
+        customer_id: customer.id,
+        customer,
+        event_id: `evt_pull_${item.id}`,
+        event_type: 'PAYMENT_FAILED',
+        amount: item.amount_inr,
+        currency: item.currency,
+        payment_method: paymentMethod,
+        failure_reason: failureReason,
+        status: caseStatus,
+        days_overdue: 0,
+        retry_count: 0,
+        reminder_count: 0,
+        recovery_probability: prediction.recovery_probability,
+        risk_level: prediction.risk_level,
+        expected_recovery_value: prediction.expected_recovery_value,
+        ml_model_version: prediction.model_version,
+        contributing_factors: prediction.contributing_factors,
+        policy_decision: policyEval.decision,
+        policy_reason: policyEval.reason,
+        policy_version: policyEval.policy_version,
+        proposed_action: proposedAction,
+        recovered_amount: 0,
+        intervention_cost: 0,
+        actual_recovery_value: 0,
+        outcome_verified: false,
+        outcome_status: 'PENDING',
+        created_at: new Date(item.created_at * 1000).toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      dbStore.addCase(newCase);
+      ingestedCases.push(newCase);
+      newlyIngestedCount++;
+      if (auto_triage) autoTriagedCount++;
+
+      auditService.log({
+        case_id: newCase.id,
+        actor_type: 'SYSTEM',
+        actor_id: 'razorpay_direct_pull',
+        event_type: 'RAZORPAY_DIRECT_PULL_INGESTED',
+        reason: `Direct pull request fetched Razorpay payment ${item.id} (₹${item.amount_inr.toLocaleString('en-IN')}) for ${item.customer_name}. Reason: ${item.error_code}.`,
+        metadata: {
+          payment_id: item.id,
+          amount_inr: item.amount_inr,
+          method: item.method,
+          error_code: item.error_code,
+          pull_mode: pullResult.request_metadata.mode
+        },
+        model_version: prediction.model_version,
+        policy_version: policyEval.policy_version
+      });
+    }
+
+    const pullRecord = {
+      id: `pull_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      request_metadata: pullResult.request_metadata,
+      summary: {
+        total_scanned: pullResult.total_scanned,
+        failed_intercepted: pullResult.failed_intercepted,
+        newly_ingested: newlyIngestedCount,
+        auto_triaged: autoTriagedCount,
+        total_revenue_at_risk: pullResult.total_revenue_at_risk
+      },
+      cases_preview: ingestedCases.slice(0, 10).map((c) => ({
+        id: c.id,
+        customer_name: c.customer.name,
+        amount: c.amount,
+        failure_reason: c.failure_reason,
+        status: c.status,
+        recovery_probability: c.recovery_probability,
+        proposed_action: c.proposed_action
+      }))
+    };
+
+    directPullHistory.unshift(pullRecord);
+    if (directPullHistory.length > 20) directPullHistory.pop();
+
+    res.json({
+      success: true,
+      pull_record: pullRecord,
+      pulled_cases: ingestedCases
+    });
+  } catch (err: any) {
+    console.error('[Razorpay Direct Pull Error]:', err);
+    res.status(500).json({
+      error: { code: 'DIRECT_PULL_FAILED', message: err.message || 'Razorpay direct pull failed' }
+    });
+  }
+});
+
+// 13c. Direct Pull History API
+app.get('/api/razorpay/direct-pull/history', (_req: Request, res: Response) => {
+  res.json({
+    history: directPullHistory,
+    total: directPullHistory.length
   });
 });
 

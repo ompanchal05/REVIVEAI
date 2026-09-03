@@ -7,14 +7,13 @@ import {
   Zap,
   CheckCircle2,
   ChevronDown,
-  Activity,
   Layers,
   HelpCircle,
   CreditCard,
   Cloud,
   LogIn,
   LogOut,
-  User as UserIcon
+  ArrowDownToLine
 } from 'lucide-react';
 import { SystemStatus } from '../types';
 import { User } from 'firebase/auth';
@@ -30,6 +29,7 @@ interface HeaderProps {
   onResetData: () => void;
   onSelectScenario: (num: number) => void;
   onOpenArchitectureInfo: () => void;
+  onOpenDirectPull: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,10 +39,10 @@ export const Header: React.FC<HeaderProps> = ({
   onSignInWithGoogle,
   onSignOut,
   onRunBatchDemo,
-  onSeedData,
   onResetData,
   onSelectScenario,
   onOpenArchitectureInfo,
+  onOpenDirectPull,
 }) => {
   const [scenarioMenuOpen, setScenarioMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -65,89 +65,95 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-30 bg-[#0F0F0F] border-b border-[#2A2A2A] text-[#E5E5E5] shadow-sm">
+    <header className="sticky top-0 z-30 bg-[#0F0F0F] border-b border-[#2A2A2A] text-[#E5E5E5] shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-18">
-          {/* Logo & Product Identity */}
-          <div className="flex items-center space-x-3.5">
-            <div className="h-10 w-10 bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center relative overflow-hidden group">
-              <div className="absolute inset-0 bg-[#C5A059] opacity-10 group-hover:opacity-20 transition" />
-              <Zap className="h-5 w-5 text-[#C5A059] relative z-10" />
+        <div className="flex items-center justify-between h-16 sm:h-[70px]">
+          {/* Left: Logo & Product Identity */}
+          <div className="flex items-center space-x-3 shrink-0">
+            <div className="h-9 w-9 bg-[#1A1A1A] border border-[#2A2A2A] flex items-center justify-center relative overflow-hidden group shadow-inner">
+              <div className="absolute inset-0 bg-[#C5A059] opacity-10 group-hover:opacity-25 transition" />
+              <Zap className="h-4.5 w-4.5 text-[#C5A059] relative z-10" />
             </div>
+
             <div>
-              <div className="flex items-center space-x-2.5">
-                <span className="text-[22px] font-serif italic tracking-tighter leading-none text-white">
+              <div className="flex items-center space-x-2">
+                <span className="text-xl sm:text-[22px] font-serif italic tracking-tight text-white leading-none">
                   Revive<span className="text-[#C5A059]">AI</span>
                 </span>
-                <span className="text-[9px] uppercase tracking-[0.25em] px-2 py-0.5 bg-[#1A1A1A] text-[#C5A059] border border-[#2A2A2A] font-mono">
-                  Controller v1.0
+                <span className="text-[9px] uppercase tracking-[0.2em] px-1.5 py-0.5 bg-[#1A1A1A] text-[#C5A059] border border-[#2A2A2A] font-mono">
+                  v1.0
                 </span>
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[9px] uppercase tracking-[0.3em] text-[#E5E5E5]/40 font-medium">
-                  Financial Recovery Lab
-                </span>
+              <div className="hidden md:flex items-center space-x-1.5 text-[10px] text-[#E5E5E5]/50 font-mono tracking-wide mt-0.5">
+                <span>Razorpay Revenue Recovery Controller</span>
                 <span className="text-[#2A2A2A]">•</span>
-                <span className="text-[10px] text-[#E5E5E5]/60 font-serif italic hidden md:inline">
-                  Find revenue slipping away. Recover it intelligently. Prove the money.
-                </span>
+                <span className="text-[#C5A059]/80 font-sans italic text-[10px]">Zero Unsolicited Actions</span>
               </div>
             </div>
           </div>
 
-          {/* Operational Status Badges */}
-          <div className="hidden lg:flex items-center space-x-2.5 text-[10px] uppercase tracking-[0.15em] font-mono">
-            {/* Mode Badge */}
+          {/* Center: System Telemetry Deck (Compact & Uncluttered) */}
+          <div className="hidden xl:flex items-center space-x-2 text-[10px] font-mono uppercase tracking-[0.12em]">
+            {/* Gateway Mode */}
             <div
               className={`flex items-center space-x-1.5 px-2.5 py-1 bg-[#141414] border border-[#2A2A2A] ${
-                systemStatus?.demo_mode
-                  ? 'text-[#C5A059]'
-                  : 'text-[#00FF66]'
+                systemStatus?.demo_mode ? 'text-[#C5A059]' : 'text-[#00FF66]'
               }`}
-              title={systemStatus?.demo_mode ? 'Running with Realistic Synthetic Simulator' : 'Connected to Razorpay Test Mode'}
+              title={systemStatus?.demo_mode ? 'Running on Sandbox Simulator' : 'Connected to Live Gateway'}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${systemStatus?.demo_mode ? 'bg-[#C5A059] animate-pulse' : 'bg-[#00FF66]'}`} />
-              <span>{systemStatus?.demo_mode ? 'Demo Simulator' : 'Razorpay Live'}</span>
+              <span>{systemStatus?.demo_mode ? 'Sandbox Simulator' : 'Razorpay Live'}</span>
             </div>
 
             {/* AI Agent Status */}
             <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-[#141414] text-[#E5E5E5]/70 border border-[#2A2A2A]">
               <Sparkles className="h-3 w-3 text-[#C5A059]" />
-              <span>
-                {systemStatus?.ai_agent_status?.includes('Gemini') ? 'Gemini 3.8 Flash' : 'Deterministic Fallback'}
-              </span>
+              <span>{systemStatus?.ai_agent_status?.includes('Gemini') ? 'Gemini 3.8 Flash' : 'ML Engine'}</span>
             </div>
 
-            {/* Policy Guardrail Badge */}
+            {/* Policy Guard */}
             <div className="flex items-center space-x-1.5 px-2.5 py-1 bg-[#141414] text-[#00FF66] border border-[#2A2A2A]">
               <ShieldAlert className="h-3 w-3 text-[#00FF66]" />
-              <span>Policy Guard: Active</span>
+              <span>Policy Guard</span>
             </div>
 
-            {/* Firestore Status */}
+            {/* Cloud Firestore */}
             <div
               className={`flex items-center space-x-1.5 px-2.5 py-1 bg-[#141414] border border-[#2A2A2A] ${
                 firebaseConnected ? 'text-[#00FF66]' : 'text-[#C5A059]'
               }`}
-              title="Firebase Firestore Cloud Persistence"
             >
               <Cloud className="h-3 w-3" />
-              <span>Firestore: {firebaseConnected ? 'Synced' : 'Connecting'}</span>
+              <span>{firebaseConnected ? 'Firestore Synced' : 'Connecting'}</span>
             </div>
           </div>
 
-          {/* Action CTAs */}
-          <div className="flex items-center space-x-2">
-            {/* Predefined Scenarios Dropdown */}
+          {/* Right: Operational Action Toolbar */}
+          <div className="flex items-center space-x-1.5 sm:space-x-2">
+            {/* Direct Pull Request from Razorpay */}
+            <button
+              type="button"
+              id="razorpay-direct-pull-btn"
+              onClick={onOpenDirectPull}
+              className="flex items-center space-x-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-mono bg-[#141414] hover:bg-[#1A1A1A] text-[#00D2FF] border border-[#00D2FF]/40 hover:border-[#00D2FF] transition shadow-sm"
+              title="Execute authenticated Direct Pull Request against Razorpay Payments API"
+            >
+              <ArrowDownToLine className="h-3.5 w-3.5 text-[#00D2FF]" />
+              <span className="hidden sm:inline text-[11px] uppercase tracking-wider font-semibold">Direct Pull</span>
+              <span className="sm:hidden text-[11px] font-bold">Pull</span>
+            </button>
+
+            {/* Test Scenarios Dropdown */}
             <div className="relative">
               <button
                 type="button"
                 id="scenario-menu-btn"
                 onClick={() => setScenarioMenuOpen(!scenarioMenuOpen)}
-                className="flex items-center space-x-1.5 px-3 py-2 text-[11px] uppercase tracking-[0.15em] font-medium bg-[#141414] hover:bg-[#1A1A1A] text-[#E5E5E5] border border-[#2A2A2A] hover:border-[#C5A059]/40 transition"
+                className="flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 sm:py-2 text-[11px] uppercase tracking-[0.12em] font-medium bg-[#141414] hover:bg-[#1A1A1A] text-[#E5E5E5] border border-[#2A2A2A] hover:border-[#C5A059]/40 transition"
+                title="Inject predefined financial test scenarios"
               >
                 <Layers className="h-3.5 w-3.5 text-[#C5A059]" />
-                <span className="hidden sm:inline">Scenario</span>
+                <span className="hidden md:inline">Scenarios</span>
                 <ChevronDown className="h-3 w-3 text-[#E5E5E5]/50" />
               </button>
 
@@ -174,37 +180,50 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Architecture Explainer Button */}
+            {/* Hero Action: Run 100-Case Demo Batch */}
+            <button
+              type="button"
+              id="run-demo-batch-btn"
+              onClick={onRunBatchDemo}
+              className="flex items-center space-x-1.5 px-3 sm:px-3.5 py-1.5 sm:py-2 text-[11px] uppercase tracking-[0.15em] font-semibold bg-[#C5A059] hover:bg-[#D4B36D] text-[#0F0F0F] border border-[#C5A059] shadow-md transition"
+              title="Simulate 100 failed payments through ML & Policy pipeline"
+            >
+              <Play className="h-3.5 w-3.5 fill-[#0F0F0F]" />
+              <span className="hidden sm:inline">100-Case Demo</span>
+              <span className="sm:hidden">Batch</span>
+            </button>
+
+            {/* Utility: Architecture Info */}
             <button
               type="button"
               id="architecture-info-btn"
               onClick={onOpenArchitectureInfo}
-              className="p-2 text-[#E5E5E5]/60 hover:text-white bg-[#141414] border border-[#2A2A2A] hover:border-[#C5A059]/40 transition"
-              title="Architecture & Governance Principle"
+              className="p-1.5 sm:p-2 text-[#E5E5E5]/60 hover:text-white bg-[#141414] border border-[#2A2A2A] hover:border-[#C5A059]/40 transition"
+              title="Architecture & Governance Principles"
             >
-              <HelpCircle className="h-4 w-4" />
+              <HelpCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </button>
 
-            {/* Reset / Seed Button */}
+            {/* Utility: Reset / Seed Data */}
             <button
               type="button"
               id="reset-demo-btn"
               onClick={handleReset}
               disabled={isResetting}
-              className="p-2 text-[#E5E5E5]/60 hover:text-white bg-[#141414] border border-[#2A2A2A] hover:border-[#C5A059]/40 transition"
+              className="p-1.5 sm:p-2 text-[#E5E5E5]/60 hover:text-white bg-[#141414] border border-[#2A2A2A] hover:border-[#C5A059]/40 transition"
               title="Reset to fresh synthetic dataset"
             >
-              <RotateCcw className={`h-4 w-4 ${isResetting ? 'animate-spin text-[#C5A059]' : ''}`} />
+              <RotateCcw className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${isResetting ? 'animate-spin text-[#C5A059]' : ''}`} />
             </button>
 
-            {/* Firebase Auth Button */}
+            {/* Firebase Auth Profile */}
             {currentUser ? (
               <div className="relative">
                 <button
                   type="button"
                   id="user-profile-menu-btn"
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center space-x-2 px-3 py-1.5 text-xs bg-[#141414] hover:bg-[#1A1A1A] text-[#E5E5E5] border border-[#2A2A2A] transition"
+                  className="flex items-center space-x-1.5 px-2 sm:px-2.5 py-1 text-xs bg-[#141414] hover:bg-[#1A1A1A] text-[#E5E5E5] border border-[#2A2A2A] transition"
                 >
                   {currentUser.photoURL ? (
                     <img
@@ -218,7 +237,7 @@ export const Header: React.FC<HeaderProps> = ({
                       {(currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()}
                     </div>
                   )}
-                  <span className="max-w-[90px] truncate text-[11px] font-mono hidden md:inline">
+                  <span className="max-w-[80px] truncate text-[11px] font-mono hidden md:inline">
                     {currentUser.displayName || currentUser.email?.split('@')[0]}
                   </span>
                   <ChevronDown className="h-3 w-3 text-[#E5E5E5]/50" />
@@ -250,24 +269,13 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 id="google-signin-btn"
                 onClick={onSignInWithGoogle}
-                className="flex items-center space-x-1.5 px-3 py-2 text-[11px] uppercase tracking-[0.15em] font-medium bg-[#141414] hover:bg-[#1A1A1A] text-[#E5E5E5] border border-[#2A2A2A] hover:border-[#C5A059]/40 transition"
+                className="flex items-center space-x-1.5 px-2.5 py-1.5 sm:py-2 text-[11px] uppercase tracking-[0.12em] font-medium bg-[#141414] hover:bg-[#1A1A1A] text-[#E5E5E5] border border-[#2A2A2A] hover:border-[#C5A059]/40 transition"
                 title="Authenticate with Google via Firebase Auth"
               >
                 <LogIn className="h-3.5 w-3.5 text-[#C5A059]" />
                 <span className="hidden sm:inline">Sign In</span>
               </button>
             )}
-
-            {/* HERO Action: Run 100-Case Demo Batch */}
-            <button
-              type="button"
-              id="run-demo-batch-btn"
-              onClick={onRunBatchDemo}
-              className="flex items-center space-x-2 px-4 py-2 text-[11px] uppercase tracking-[0.2em] font-semibold bg-[#C5A059] hover:bg-[#D4B36D] text-[#0F0F0F] border border-[#C5A059] shadow-lg transition"
-            >
-              <Play className="h-3.5 w-3.5 fill-[#0F0F0F]" />
-              <span>Run 100-Case Demo</span>
-            </button>
           </div>
         </div>
       </div>

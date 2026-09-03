@@ -1,4 +1,4 @@
-# ReviveAI — Autonomous Razorpay Revenue Recovery Controller : https://reviveai-795247095212.us-west1.run.app/
+# ReviveAI — Autonomous Razorpay Revenue Recovery Controller 
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB.svg?logo=react)](https://react.dev/)
@@ -13,6 +13,8 @@
 > ReviveAI is an enterprise-grade payment recovery and revenue control plane designed for high-volume Razorpay merchants. It pairs calibrated machine learning models and Gemini generative diagnostics bounded by deterministic financial safety policies, ensuring **zero unsolicited spam** and **100% verified settlement reconciliation**.
 
 ---
+## WEB SITE LINK 
+https://reviveai-795247095212.us-west1.run.app/
 
 ## 📑 Table of Contents
 - [Executive Overview](#-executive-overview)

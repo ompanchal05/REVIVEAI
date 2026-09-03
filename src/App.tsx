@@ -14,6 +14,7 @@ import { SystemStatusSettingsView } from './components/SystemStatusSettingsView'
 import { DemoRunnerModal } from './components/DemoRunnerModal';
 import { LandingHeroModal } from './components/LandingHeroModal';
 import { RazorpayDirectPullModal } from './components/RazorpayDirectPullModal';
+import { LandingPageView } from './components/LandingPageView';
 import {
   ActionType,
   AuditLog,
@@ -34,6 +35,8 @@ import {
 } from './lib/firebase';
 
 export default function App() {
+  const [viewMode, setViewMode] = useState<'website' | 'app'>('website');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [currentTab, setCurrentTab] = useState<NavTab>('overview');
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [cases, setCases] = useState<RecoveryCase[]>([]);
@@ -397,6 +400,10 @@ export default function App() {
         systemStatus={systemStatus}
         currentUser={currentUser}
         firebaseConnected={firebaseConnected}
+        isWebsiteMode={viewMode === 'website'}
+        onToggleWebsiteMode={(mode) => setViewMode(mode)}
+        onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+        isMobileSidebarOpen={isMobileSidebarOpen}
         onSignInWithGoogle={handleSignInWithGoogle}
         onSignOut={handleSignOut}
         onRunBatchDemo={() => setIsBatchModalOpen(true)}
@@ -407,77 +414,96 @@ export default function App() {
         onOpenDirectPull={() => setIsDirectPullOpen(true)}
       />
 
-      {/* App Shell: Sidebar + Main Content */}
-      <div className="flex-1 flex max-w-7xl w-full mx-auto">
-        <Sidebar
-          currentTab={currentTab}
-          onSelectTab={(tab) => setCurrentTab(tab)}
-          humanReviewCount={humanReviewQueue.length}
-          activeCasesCount={metrics?.active_cases || cases.length}
+      {/* Conditional View: Public Marketing Website vs Enterprise Console Shell */}
+      {viewMode === 'website' ? (
+        <LandingPageView
+          systemStatus={systemStatus}
+          onEnterConsole={(tab) => {
+            if (tab) setCurrentTab(tab as NavTab);
+            setViewMode('app');
+          }}
+          onOpenDirectPull={() => setIsDirectPullOpen(true)}
+          onRunBatchDemo={() => setIsBatchModalOpen(true)}
+          onSelectScenario={(num) => {
+            handleSelectScenario(num);
+            setViewMode('app');
+          }}
         />
+      ) : (
+        /* App Shell: Sidebar + Main Content */
+        <div className="flex-1 flex max-w-7xl w-full mx-auto">
+          <Sidebar
+            currentTab={currentTab}
+            onSelectTab={(tab) => setCurrentTab(tab)}
+            humanReviewCount={humanReviewQueue.length}
+            activeCasesCount={metrics?.active_cases || cases.length}
+            isOpenMobile={isMobileSidebarOpen}
+            onCloseMobile={() => setIsMobileSidebarOpen(false)}
+          />
 
-        {/* Main Content Area */}
-        <main className="flex-1 p-6 overflow-x-hidden min-w-0">
-          {currentTab === 'overview' && (
-            <OverviewView
-              metrics={metrics}
-              cases={cases}
-              onSelectCase={handleOpenCase}
-              onNavigateToQueue={() => setCurrentTab('queue')}
-              onNavigateToExperiments={() => setCurrentTab('experiments')}
-            />
-          )}
+          {/* Main Content Area */}
+          <main className="flex-1 p-4 sm:p-6 overflow-x-hidden min-w-0">
+            {currentTab === 'overview' && (
+              <OverviewView
+                metrics={metrics}
+                cases={cases}
+                onSelectCase={handleOpenCase}
+                onNavigateToQueue={() => setCurrentTab('queue')}
+                onNavigateToExperiments={() => setCurrentTab('experiments')}
+              />
+            )}
 
-          {currentTab === 'queue' && (
-            <RecoveryQueueView
-              cases={cases}
-              totalCases={totalCases}
-              loading={loadingCases}
-              onSelectCase={handleOpenCase}
-              onExecuteCase={(c) => handleExecuteAction(c.id, c.proposed_action, `idemp_${c.id}_${Date.now()}`)}
-              onApproveCase={(c) => {
-                handleOpenCase(c);
-                setCurrentTab('human_review');
-              }}
-              onFilterChange={(filters) => loadCases(filters)}
-              onOpenDirectPull={() => setIsDirectPullOpen(true)}
-            />
-          )}
+            {currentTab === 'queue' && (
+              <RecoveryQueueView
+                cases={cases}
+                totalCases={totalCases}
+                loading={loadingCases}
+                onSelectCase={handleOpenCase}
+                onExecuteCase={(c) => handleExecuteAction(c.id, c.proposed_action, `idemp_${c.id}_${Date.now()}`)}
+                onApproveCase={(c) => {
+                  handleOpenCase(c);
+                  setCurrentTab('human_review');
+                }}
+                onFilterChange={(filters) => loadCases(filters)}
+                onOpenDirectPull={() => setIsDirectPullOpen(true)}
+              />
+            )}
 
-          {currentTab === 'investigation' && (
-            <AIInvestigationView
-              cases={cases}
-              onSelectCase={handleOpenCase}
-              onRunInvestigation={handleReanalyzeAI}
-            />
-          )}
+            {currentTab === 'investigation' && (
+              <AIInvestigationView
+                cases={cases}
+                onSelectCase={handleOpenCase}
+                onRunInvestigation={handleReanalyzeAI}
+              />
+            )}
 
-          {currentTab === 'human_review' && (
-            <HumanReviewView
-              queue={humanReviewQueue}
-              onSelectCase={handleOpenCase}
-              onApproveCase={handleApproveCase}
-            />
-          )}
+            {currentTab === 'human_review' && (
+              <HumanReviewView
+                queue={humanReviewQueue}
+                onSelectCase={handleOpenCase}
+                onApproveCase={handleApproveCase}
+              />
+            )}
 
-          {currentTab === 'analytics' && <AnalyticsView metrics={metrics} />}
+            {currentTab === 'analytics' && <AnalyticsView metrics={metrics} />}
 
-          {currentTab === 'model_performance' && <ModelPerformanceView />}
+            {currentTab === 'model_performance' && <ModelPerformanceView />}
 
-          {currentTab === 'experiments' && <ExperimentsView />}
+            {currentTab === 'experiments' && <ExperimentsView />}
 
-          {currentTab === 'audit' && <AuditTrailView />}
+            {currentTab === 'audit' && <AuditTrailView />}
 
-          {currentTab === 'settings' && (
-            <SystemStatusSettingsView
-              systemStatus={systemStatus}
-              currentUser={currentUser}
-              firebaseConnected={firebaseConnected}
-              onRefreshStatus={loadSystemStatus}
-            />
-          )}
-        </main>
-      </div>
+            {currentTab === 'settings' && (
+              <SystemStatusSettingsView
+                systemStatus={systemStatus}
+                currentUser={currentUser}
+                firebaseConnected={firebaseConnected}
+                onRefreshStatus={loadSystemStatus}
+              />
+            )}
+          </main>
+        </div>
+      )}
 
       {/* Drawer: Detailed Case Dossier */}
       {selectedCase && (
